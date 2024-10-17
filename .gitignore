@@ -1,4 +1,5 @@
 # meta files
+__pycache__/
 bin/
 lib/
 lib64
