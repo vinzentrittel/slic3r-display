@@ -6,9 +6,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, is_dataclass
+from os.path import dirname
+from pathlib import Path
 from sys import stdout
 from typing import List, Optional, TextIO, Tuple
 from json import JSONEncoder, dumps
+
+from stl.mesh import Mesh
+from numpy import array, ones
 
 from .markup import ControlPoint, LineMarkup, Markup
 
@@ -29,7 +34,89 @@ class MrkClassEncoder(JSONEncoder):
         return super().default(obj)
 
 
-class Slic3rLineRepresentable(ABC):
+class Slic3rRepresentable(ABC):
+    """
+    Abstract base class for 3D objects that need representation in 3D Slic3r.
+
+    Implement _update_markups() and Slic3rRepresentable.make_from(list), to instantiate a derived class.
+    """
+    def __init__(self) -> None:
+        self.mrk_obj = MrkClass()
+
+    @abstractmethod
+    def _update_markups(self) -> None:
+        """
+        This function is called automatically prior to calls to write and print. Set up your MrkClass objects here.
+        """
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def make_from(point_arrangements: List) -> str:
+        """
+        Return JSON string from one or more lists of 3D enpoints, that can be interpreted as 3D Markup files.
+
+        Keyword arguments:
+        point_arrangements - Set of points, to create markups from.
+        """
+        ...
+
+    def write(self, filename: Path) -> None:
+        """
+        Save 3D Slic3r interpretable markup representation to drive, at path 'filename'.
+        
+        Keyword arguments:
+        filename - System path, where the JSON string will be written at.
+        """
+        try:
+            with open(filename, "w") as file:
+                self.print(outfile=file)
+        except Exception as err:
+            print(f"Could not write to '{filename}'")
+
+    def print(self, outfile: TextIO=stdout) -> None:
+        """
+        Write 3D Slic3r interpretable markup representation to stdout (or another file object).
+
+        Keyword arguments:
+        outfile - File object, where the JSON string will be printed to (default: stdout)
+        """
+        self._update_markups()
+        print(dumps(self.mrk_obj, cls=MrkClassEncoder, indent=2), file=outfile)
+
+    @classmethod
+    def print_from(cls, point_arrangements: List, outfile: TextIO=stdout) -> None:
+        """
+        Print JSON string from one or more lists of 3D enpoints, that can be interpreted as 3D Markup files.
+        The outfile will contain one or more line markups, according to point_arrangements parameters lenght.
+
+        Keyword arguments:
+        point_arrangements - example:
+            point_arrangements=[ [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
+                                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]] ]
+        outfile - File object, where the JSON string will be printed to (default: stdout)
+        """
+        print(cls.make_from(point_arrangements), file=outfile)
+
+    @classmethod
+    def write_from(cls, point_arrangements: List, filename: Path) -> None:
+        """
+        Write JSON string from one or more lists of 3D enpoints, that can be interpreted as 3D Markup files.
+        The file will contain one or more line markups, according to point_arrangements parameters lenght.
+
+        Keyword arguments:
+        point_arrangements - example:
+            point_arrangements=[ [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
+                                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]] ]
+        filename - System path, where the JSON string will be written at.
+        """
+        try:
+            with open(filename, "w") as file:
+                cls.print_from(point_arrangements, outfile=file)
+        except Exception as err:
+            print(f"Could not write to '{filename}'")
+
+class Slic3rLineRepresentable(Slic3rRepresentable):
     """
     Abstract class providing print methods.
     
@@ -37,13 +124,15 @@ class Slic3rLineRepresentable(ABC):
     write - Save 3D Slic3r interpretable line markup representation to drive.
     print - Write 3D Slic3r interpretable line markup representation to stdout (or another file object).
 
+    Static methods:
+    make_from - Returns JSON string of 3D Slic3r interpretable line on the fly.
+    print_from - Print JSON string of 3D Slic3r interpretable line on the fly.
+    write_from - Write JSON string of 3D Slic3r interpretable line on the fly, to a location on your drive.
+
     Pure virtual functions (aka override these):
     line_count (property) - Return the number of supplied lines by derived class.
     get_line(int) - Return the endpoints for line with 'id' as supplied by parameter.
     """
-    def __init__(self) -> None:
-        self.mrk_obj = MrkClass()
-    
     @property
     @abstractmethod
     def line_count(self) -> int:
@@ -57,6 +146,7 @@ class Slic3rLineRepresentable(ABC):
     def get_line(self, id: int) -> Tuple[Float3VectorType, Float3VectorType]:
         """
         Return the endpoints for line with 'id' as supplied by parameter.
+        ! Implement this in your derived class !
 
         Result: Two-tuple of lists of 3 float values, i.e.
                 ([1.0, 0.0, 0.0], [2.0, 0.0, 0.0],)
@@ -76,29 +166,6 @@ class Slic3rLineRepresentable(ABC):
             first_point, second_point = self.get_line(id)
             line.add(first_point, id=id + 1)
             line.add(second_point, id=id + 1)
-
-    def write(self, filename: Path) -> None:
-        """
-        Save 3D Slic3r interpretable line markup representation to drive, at path 'filename'.
-        
-        Keyword arguments:
-        filename - System path, where the JSON string will be written at.
-        """
-        try:
-            with open(filename, "w") as file:
-                self.print(outfile=file)
-        except Exception as err:
-            print(f"Could not write to '{filename}'")
-
-    def print(self, outfile: TextIO=stdout) -> None:
-        """
-        Write 3D Slic3r interpretable line markup representation to stdout (or another file object).
-
-        Keyword arguments:
-        outfile - File object, where the JSON string will be printed to (default: stdout)
-        """
-        self._update_markups()
-        print(dumps(self.mrk_obj, cls=MrkClassEncoder, indent=2), file=outfile)
 
     @staticmethod
     def make_from(point_arrangements: List) -> str:
@@ -133,37 +200,123 @@ class Slic3rLineRepresentable(ABC):
         ]
         return dumps(MrkClass(markups), cls=MrkClassEncoder, indent=2)
 
-    @classmethod
-    def print_from(cls, point_arrangements: List, outfile: TextIO=stdout) -> None:
+class Slic3rBoxRepresentable(Slic3rRepresentable):
+    """
+    Abstract class providing STL write methods.
+    
+    Member methods:
+    write - Write a STL representation of this box.
+
+    Static methods:
+    write_from - Write a STL representation of this box on the fly, to a location on your drive.
+
+    Pure virtual functions (aka override these):
+    origin (property) - Return the 3D float vector of the subclasses minimal point in all axis directions.
+    get_axis(int) - Return an arbitrarily sized axis as 3D float vector.
+    """
+    UnitCubePath = Path(dirname(__file__), "data", "B.stl")
+
+    @property
+    @abstractmethod
+    def origin(self) -> Float3VectorType:
         """
-        Print JSON string from one or more lists of 3D enpoints, that can be interpreted as 3D Markup files.
-        The outfile will contain one or more line markups, according to point_arrangements parameters lenght.
+        Return the 3D float vector of the subclasses minimal point in all axis directions.
+        ! Implement this in your derived class !
+        """
+        ...
+
+    @abstractmethod
+    def get_axis(self, id: int) -> Float3VectorType:
+        """
+        Return an arbitrarily sized axis as 3D float vector. The 'id'
+        parameter determines the axis, to return. 0, 1, 2 for x, y, z axis,
+        respectively.
+        ! Implement this in your derived class !
 
         Keyword arguments:
-        point_arrangements - example:
-            point_arrangements=[ [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
-                                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]] ]
-        outfile - File object, where the JSON string will be printed to (default: stdout)
+        id - zero based index, specifying the desired axis, to be returned.
         """
-        print(cls.make_from(point_arrangements), file=outfile)
+        ...
 
-    @classmethod
-    def write_from(cls, point_arrangements: List, filename: Path) -> None:
+    def write(self, filename: Path) -> None:
         """
-        Write JSON string from one or more lists of 3D enpoints, that can be interpreted as 3D Markup files.
-        The file will contain one or more line markups, according to point_arrangements parameters lenght.
+        Write a STL representation of this box at 'filename'.
+        The size, orientation and position is determined by the subclasses
+        'origin' property and 'get_axis(int)' method, respectively.
 
         Keyword arguments:
-        point_arrangements - example:
-            point_arrangements=[ [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
-                                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]] ]
-        filename - System path, where the JSON string will be written at.
+        filename - System path, where the STL cube will be written at.
         """
-        try:
-            with open(filename, "w") as file:
-                cls.print_from(point_arrangements, outfile=file)
-        except Exception as err:
-            print(f"Could not write to '{filename}'")
+        self.mrk_obj = Mesh.from_file(self.UnitCubePath)
+        self._save_geometry(
+            self.origin,
+            axes=[self.get_axis(id) for id in range(3)],
+            filename=filename,
+            geometry=self.mrk_obj,
+        )
+
+    @classmethod
+    def _save_geometry(
+        cls,
+        origin: Float3VectorType,
+        axes: Tuple[Float3VectorType, Float3VectorType, Float3VectorType],
+        filename: Path,
+        geometry: Mesh,
+    ) -> None:
+        """
+        Write a STL representation of an STL Mesh object to 'filename'.
+        The size, orientation and position is determined by 'point_arrangements'.
+
+        Keyword arguments:
+        origin - 3D float vector of the desired minimal point in all axis directions.
+        axes - 3-Tuple of 3D float vector, representing the x, y, z axis, respectively.
+               They do not need to be of any certain size.
+        filename - System path, where the STL cube will be written at.
+        geometry - STL surface mesh of the object to be altered and written.
+        """
+        assert filename != cls.UnitCubePath
+        points = geometry.points.reshape((36, 3,))
+        rotation_matrix = array(axes)
+        points = points.dot(rotation_matrix)
+        geometry.points = points.reshape((12, 9,))
+
+        geometry.translate(origin)
+        geometry.save(filename)
+
+    @classmethod
+    def write_from(
+        cls,
+        origin: Float3VectorType,
+        axes: Tuple[Float3VectorType, Float3VectorType, Float3VectorType],
+        filename: Path,
+    ) -> None:
+        """
+        Write a STL representation of a box at 'filename'.
+        The size, orientation and position is determined by 'point_arrangements'.
+
+        Keyword arguments:
+        origin - 3D float vector of the desired minimal point in all axis directions.
+        axes - 3-Tuple of 3D float vector, representing the x, y, z axis, respectively.
+               They do not need to be of any certain size.
+        filename - System path, where the STL cube will be written at.
+        """
+        cls._save_geometry(
+            origin, axes, filename, geometry=Mesh.from_file(cls.UnitCubePath),
+        )
+
+    def _update_markups(self) -> None:
+        raise NotImplementedError
+
+    def print(self, outfile: TextIO) -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def make_from(point_arrangements: List) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def print_from(cls, point_arrangements: List, outfile: TextIO) -> None:
+        raise NotImplementedError
 
 if __name__ == "__main__":
     """
@@ -178,7 +331,7 @@ if __name__ == "__main__":
                 ((1.0, 0.0, 0.0,), (2.0, 0.0, 0.0,),),
                 ((3.0, 0.0, 0.0,), (4.0, 0.0, 0.0,),),
             ][id]
-    
+
     my_obj = MyClass()
     my_obj.print()
     # or
