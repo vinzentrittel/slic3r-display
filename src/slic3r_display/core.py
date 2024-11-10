@@ -16,7 +16,7 @@ from stl.mesh import Mesh
 from numpy import array
 from numpy.linalg import norm
 
-from .markup import ControlPoint, LineMarkup, Markup
+from .markup import ControlPoint, LineMarkup, Markup, PointMarkup
 from .types import Float3VectorType
 
 @dataclass
@@ -121,6 +121,84 @@ class Slic3rRepresentable(ABC):
         except Exception:
             print(f"Could not write to '{filename}'")
 
+class Slic3rPointRepresentable(Slic3rRepresentable):
+    """
+    Abstract class providing print methods.
+    
+    Member methods:
+    write - Save 3D Slic3r interpretable fiducial markup representation to drive.
+    print - Write 3D Slic3r interpretable fiducial markup representation to stdout
+            (or another file object).
+
+    Static methods:
+    make_from - Returns JSON string of 3D Slic3r interpretable points on the fly.
+    print_from - Print JSON string of 3D Slic3r interpretable points on the fly.
+    write_from - Write JSON string of 3D Slic3r interpretable points on the fly,
+                 to a location on your drive.
+
+    Pure virtual functions (aka override these):
+    point_count (property) - Return the number of supplied points by derived class.
+    get_point(int) - Return the control point (aka. coordinate) with 'id' as supplied by parameter.
+    """
+    @property
+    @abstractmethod
+    def point_count(self) -> int:
+        """
+        Return the number of supplied control points (aka. coordinates) by derived class.
+        ! Implement this in your derived class !
+        """
+
+    @abstractmethod
+    def get_point(self, id_: int) -> Float3VectorType:
+        """
+        Return the control pointrs with 'id' as supplied by parameter.
+        ! Implement this in your derived class !
+
+        Keyword arguments:
+        id - zero based index, specifying the desired control point (aka. coordinate), to be
+             returned.
+        """
+
+    def _update_markups(self) -> None:
+        """
+        Create new point markup from the coordinates provided by the derived classes
+        virtual functions 'point_count' and 'get_point(int)'.
+        """
+        markup = PointMarkup()
+        for id_ in range(self.point_count):
+            markup.add(self.get_point(id_), id_=id_ + 1)
+        self.mrk_obj.markups = [markup]
+
+    @staticmethod
+    def make_from(point_arrangements: List) -> Slic3rPointRepresentable:
+        """
+        Return JSON string from one or more 3D control points, that can be interpreted
+        as 3D Markup files. The file will contain a fiducial markup. Its number of points
+        corresponds to 'point_arrangements' parameter's length.
+
+        Keyword arguments:
+        point_arrangements - example:
+            point_arrangements=[ [1.0, 0.0, 0.0],
+                                 [2.0, 0.0, 0.0],
+                                 [3.0, 0.0, 0.0],
+                                 [4.0, 0.0, 0.0] ]
+        """
+        assert isinstance(point_arrangements, Iterable)
+        if len(point_arrangements) == 0:
+            return ""
+        assert all(len(point) == 3 for point in point_arrangements)
+        assert all(isinstance(value, float) for point in point_arrangements for value in point)
+
+        markups = [
+            PointMarkup(controlPoints=[
+                ControlPoint.make_control_point(
+                    id_, label=f"P_{id_ + 1}", x=point[0], y=point[1], z=point[2]
+                )
+                for id_, point in enumerate(point_arrangements)
+            ])
+        ]
+        return dumps(MrkClass(markups), cls=MrkClassEncoder, indent=2)
+
 class Slic3rLineRepresentable(Slic3rRepresentable):
     """
     Abstract class providing print methods.
@@ -169,8 +247,8 @@ class Slic3rLineRepresentable(Slic3rRepresentable):
         self.mrk_obj.markups = [LineMarkup() for _ in range(self.line_count)]
         for id_, line in enumerate(self.mrk_obj.markups):
             first_point, second_point = self.get_line(id_)
-            line.add(first_point, id=id_ + 1)
-            line.add(second_point, id=id_ + 1)
+            line.add(first_point, id_=id_ + 1)
+            line.add(second_point, id_=id_ + 1)
 
     @staticmethod
     def make_from(point_arrangements: List) -> str:
@@ -200,13 +278,13 @@ class Slic3rLineRepresentable(Slic3rRepresentable):
         markups = [
             LineMarkup(controlPoints=[
                 ControlPoint.make_control_point(
-                    1, label=f"L_{id + 1}", x=line[0][0], y=line[0][1], z=line[0][2]
+                    1, label=f"L_{id_ + 1}", x=line[0][0], y=line[0][1], z=line[0][2]
                 ),
                 ControlPoint.make_control_point(
-                    2, label=f"L_{id + 1}", x=line[1][0], y=line[1][1], z=line[1][2]
+                    2, label=f"L_{id_ + 1}", x=line[1][0], y=line[1][1], z=line[1][2]
                 ),
             ])
-            for id, line in enumerate(point_arrangements)
+            for id_, line in enumerate(point_arrangements)
         ]
         return dumps(MrkClass(markups), cls=MrkClassEncoder, indent=2)
 

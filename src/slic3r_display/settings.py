@@ -1,20 +1,20 @@
-DefaultPosition = [0.0, 0.0, 0.0]
-DefaultOrientation = [-1.0, -0.0, -0.0, -0.0, -1.0, -0.0, 0.0, 0.0, 1.0]
-StatusDefined = "defined"
-StatusUndefined = "undefined"
+DEFAULT_POSITION = [0.0, 0.0, 0.0]
+DEFAULT_ORIENTATION = [-1.0, -0.0, -0.0, -0.0, -1.0, -0.0, 0.0, 0.0, 1.0]
+STATUS_DEFINED = "defined"
+STATUS_UNDEFINED = "undefined"
 
-DefaultColor = [0.4, 1.0, 1.0]
-DefaultSelectedColor = [1.0, 0.5000076295109484, 0.5000076295109484]
-DefaultScale = 3.0
-DefaultSize = 5.0
-DefaultThickness = 0.2
-DefaultGlyphType = "Sphere3D"
-DefaultProjectionColor = [1.0, 1.0, 1.0]
-DefaultSliceOpacity = 0.6
-DefaultSnapMode = "toVisibleSurface"
+DEFAULT_COLOR = [0.4, 1.0, 1.0]
+DEFAULT_SELECTED_COLOR = [1.0, 0.5000076295109484, 0.5000076295109484]
+DEFAULT_SCALE = 3.0
+DEFAULT_SIZE = 5.0
+DEFAULT_THICKNESS = 0.2
+DEFAULT_GLYPH_TYPE = "Sphere3D"
+DEFAULT_PROJECTION_COLOR = [1.0, 1.0, 1.0]
+DEFAULT_SLICE_OPACITY = 0.6
+DEFAULT_SNAP_MODE = "toVisibleSurface"
 
-LineMarkupType = "Line"
-DefaultCoordinateSystem = "LPS"
-DefaultCoordinateUnits = "mm"
-DefaultLabelFormat = "%N-%d"
-
+LINE_MARKUP_TYPE = "Line"
+POINT_MARKUP_TYPE = "Fiducial"
+DEFAULT_COORDINATE_SYSTEM = "LPS"
+DEFAULT_COORDINATE_UNITS = "mm"
+DEFAULT_LABEL_FORMAT = "%N-%d"

@@ -1,3 +1,3 @@
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
-from .core import Slic3rBoxRepresentable, Slic3rLineRepresentable
+from .core import Slic3rBoxRepresentable, Slic3rLineRepresentable, Slic3rPointRepresentable
