@@ -9,14 +9,14 @@ from dataclasses import asdict, dataclass, field
 from os.path import dirname
 from pathlib import Path
 from sys import stdout
-from typing import Any, List, TextIO, Tuple
-from json import JSONEncoder, dumps
+from typing import Any, Dict, List, TextIO, Tuple
+from json import JSONEncoder, dumps, loads
 
 from stl.mesh import Mesh
 from numpy import array
 from numpy.linalg import norm
 
-from .markup import ControlPoint, LineMarkup, Markup, PointMarkup
+from .markup import ControlPoint, CurveMarkup, LineMarkup, Markup, PointMarkup
 from .types import Float3VectorType
 
 @dataclass
@@ -35,12 +35,11 @@ class MrkClassEncoder(JSONEncoder):
             return obj_dict
         return super().default(o)
 
-
 class Slic3rRepresentable(ABC):
     """
     Abstract base class for 3D objects that need representation in 3D Slic3r.
 
-    Implement _update_markups() and Slic3rRepresentable.make_from(list), to instantiate
+    Implement _update_markups(), read() and Slic3rRepresentable.make_from(list), to instantiate
     a derived class.
     """
     def __init__(self) -> None:
@@ -62,6 +61,15 @@ class Slic3rRepresentable(ABC):
 
         Keyword arguments:
         point_arrangements - Set of points, to create markups from.
+        """
+
+    @abstractmethod
+    def read(self, filename: Path) -> None:
+        """
+        Read 3D Slic3r markups file from 'filename'.
+
+        Keyword arguments:
+        filename - System path, where a valid mrk.json. file ist stored.
         """
 
     def write(self, filename: Path) -> None:
@@ -126,6 +134,7 @@ class Slic3rPointRepresentable(Slic3rRepresentable):
     Abstract class providing print methods.
     
     Member methods:
+    read - Read a 3D Slic3r interpretable fiducial markup representation from drive
     write - Save 3D Slic3r interpretable fiducial markup representation to drive.
     print - Write 3D Slic3r interpretable fiducial markup representation to stdout
             (or another file object).
@@ -166,8 +175,20 @@ class Slic3rPointRepresentable(Slic3rRepresentable):
         """
         markup = PointMarkup()
         for id_ in range(self.point_count):
-            markup.add(self.get_point(id_), id_=id_ + 1)
+            markup.add(self.get_point(id_).position, id_=id_ + 1)
         self.mrk_obj.markups = [markup]
+
+    def read(self, filename: Path) -> None:
+        """
+        Read 3D Slic3r markups file from 'filename'.
+
+        Keyword arguments:
+        filename - System path, where a valid mrk.json. file ist stored.
+        """
+        assert filename.is_file()
+
+        with open(filename, "r", encoding="utf-8") as file:
+            self.mrk_obj.markups = loads("\n".join(file.readlines()), object_hook=PointMarkup.decoder)
 
     @staticmethod
     def make_from(point_arrangements: List) -> Slic3rPointRepresentable:
@@ -204,6 +225,7 @@ class Slic3rLineRepresentable(Slic3rRepresentable):
     Abstract class providing print methods.
     
     Member methods:
+    read - Read a 3D Slic3r interpretable line markup representation from drive
     write - Save 3D Slic3r interpretable line markup representation to drive.
     print - Write 3D Slic3r interpretable line markup representation to stdout
             (or another file object).
@@ -250,6 +272,18 @@ class Slic3rLineRepresentable(Slic3rRepresentable):
             line.add(first_point, id_=id_ + 1)
             line.add(second_point, id_=id_ + 1)
 
+    def read(self, filename: Path) -> None:
+        """
+        Read 3D Slic3r markups file from 'filename'.
+
+        Keyword arguments:
+        filename - System path, where a valid mrk.json. file ist stored.
+        """
+        assert filename.is_file()
+
+        with open(filename, "r", encoding="utf-8") as file:
+            self.mrk_obj.markups = loads("\n".join(file.readlines()), object_hook=LineMarkup.decoder)
+
     @staticmethod
     def make_from(point_arrangements: List) -> str:
         """
@@ -285,6 +319,101 @@ class Slic3rLineRepresentable(Slic3rRepresentable):
                 ),
             ])
             for id_, line in enumerate(point_arrangements)
+        ]
+        return dumps(MrkClass(markups), cls=MrkClassEncoder, indent=2)
+
+class Slic3rCurveRepresentable(Slic3rRepresentable):
+    """
+    Abstract class providing print methods.
+    
+    Member methods:
+    read - Read a 3D Slic3r interpretable curve markup representation from drive
+    write - Save 3D Slic3r interpretable curve markup representation to drive.
+    print - Write 3D Slic3r interpretable curve markup representation to stdout
+            (or another file object).
+
+    Static methods:
+    make_from - Returns JSON string of 3D Slic3r interpretable curve on the fly.
+    print_from - Print JSON string of 3D Slic3r interpretable curve on the fly.
+    write_from - Write JSON string of 3D Slic3r interpretable curve on the fly,
+                 to a location on your drive.
+
+    Pure virtual functions (aka override these):
+    curve_count (property) - Return the number of supplied curves by derived class.
+    get_curve(int) - Return the endpoints for curve with 'id' as supplied by parameter.
+    """
+    @property
+    @abstractmethod
+    def curve_count(self) -> int:
+        """
+        Return the number of supplied curves by derived class.
+        ! Implement this in your derived class !
+        """
+
+    @abstractmethod
+    def get_curve(self, id_: int) -> int:
+        """
+        Return the number of supplied curves by derived class.
+        ! Implement this in your derived class !
+        """
+
+    def _update_markups(self) -> None:
+        """
+        Create new curve markups from the curves provided by the derived classes
+        virtual functions 'curve_count' and 'get_curve(int)'.
+        """
+        self.mrk_obj.markups = [CurveMarkup() for _ in range(self.curve_count)]
+        for id_, curve in enumerate(self.mrk_obj.markups):
+            for curve_point in self.get_curve(id_):
+                curve.add(curve_point, id_=id_ + 1)
+
+    def read(self, filename: Path) -> None:
+        """
+        Read 3D Slic3r markups file from 'filename'.
+
+        Keyword arguments:
+        filename - System path, where a valid mrk.json. file ist stored.
+        """
+        assert filename.is_file()
+
+        with open(filename, "r", encoding="utf-8") as file:
+            self.mrk_obj.markups = loads("\n".join(file.readlines()), object_hook=CurveMarkup.decoder)
+
+    @staticmethod
+    def make_from(point_arrangements: List) -> str:
+        """
+        Return JSON string from one or more lists of 3D enpoints, that can be interpreted
+        as 3D Markup files. The file will contain one or more curve markups, according to
+        point_arrangements parameters lenght.
+
+        Keyword arguments:
+        point_arrangements - example:
+            point_arrangements=[ [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
+                                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]] ]
+        """
+        assert isinstance(point_arrangements, Iterable)
+        if len(point_arrangements) == 0:
+            return ""
+        assert all(isinstance(curve, Iterable) for curve in point_arrangements)
+        assert all(len(curve) > 0 for curve in point_arrangements)
+        assert all(len(point) == 3 for curve in point_arrangements for point in curve)
+        assert all(
+            isinstance(value, float)
+            for curve in point_arrangements
+            for point in curve
+            for value in point
+        )
+
+        markups = [
+            CurveMarkup(controlPoints=[
+                [
+                    ControlPoint.make_control_point(
+                        point_id,label=f"OC_{curve_id + 1}", x=point[0], y=point[1], z=point[2]
+                    )
+                    for point_id, point in enumerate(curve)
+                ]
+                for curve_id, curve in enumerate(point_arrangements)
+            ])
         ]
         return dumps(MrkClass(markups), cls=MrkClassEncoder, indent=2)
 
@@ -348,6 +477,15 @@ class Slic3rBoxRepresentable(Slic3rRepresentable):
         transformation_matrix = array(axes)
         transformation_matrix /= norm(transformation_matrix, axis=1)
         return array(center) - transformation_matrix.dot([0.5, 0.5, 0.5] * scale)
+
+    def read(self, filename: Path) -> None:
+        """
+        Read STL file from 'filename', containing only a cube
+
+        Keyword arguments:
+        filename - System path, where a valid STL file ist stored.
+        """
+        raise NotImplementedError
 
     def write(self, filename: Path) -> None:
         """
@@ -431,11 +569,11 @@ class Slic3rBoxRepresentable(Slic3rRepresentable):
 
 if __name__ == "__main__":
     # Usage:
-    class MyClass(Slic3rLineRepresentable):
+    class MyClass(Slic3rCurveRepresentable):
         @property
-        def line_count(self) -> int:
+        def curve_count(self) -> int:
             return 2
-        def get_line(self, id_: int) -> Tuple[Float3VectorType, Float3VectorType]:
+        def get_curve(self, id_: int) -> Tuple[Float3VectorType, Float3VectorType]:
             return [
                 ((1.0, 0.0, 0.0,), (2.0, 0.0, 0.0,),),
                 ((3.0, 0.0, 0.0,), (4.0, 0.0, 0.0,),),
@@ -443,6 +581,8 @@ if __name__ == "__main__":
 
     my_obj = MyClass()
     my_obj.print()
+    import sys
+    sys.exit()
     # or
     print(
         Slic3rLineRepresentable.make_from([
