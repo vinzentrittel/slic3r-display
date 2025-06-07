@@ -8,7 +8,12 @@ from .core import (
     Slic3rLineRepresentable,
     Slic3rPointRepresentable,
 )
-from .settings import LINE_MARKUP_TYPE, POINT_MARKUP_TYPE, CURVE_MARKUP_TYPE
+from .settings import (
+    LINE_MARKUP_TYPE,
+    POINT_MARKUP_TYPE,
+    CLOSED_CURVE_MARKUP_TYPE,
+    CURVE_MARKUP_TYPE,
+)
 from .types import Float3VectorType
 
 def convert(representable: Slic3rRepresentable) -> Slic3rPointRepresentable:
@@ -134,7 +139,8 @@ class _CurveImplementation(Slic3rCurveRepresentable):
     def contains_curves(filename: Path):
         with open(filename, "r", encoding="utf-8") as file:
             return search(
-                f'"type": "{CURVE_MARKUP_TYPE}",', "\n".join(file.readlines())
+                f'"type": "{CURVE_MARKUP_TYPE}|{CLOSED_CURVE_MARKUP_TYPE}",',
+                "\n".join(file.readlines()),
             ) is not None
 
 if __name__ == "__main__":

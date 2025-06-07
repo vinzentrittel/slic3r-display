@@ -117,7 +117,7 @@ class Markup(ABC):
 
         markups = []
         for item in json_dict["markups"]:
-            assert item["type"] == cls.static_type()
+            assert item["type"] in cls.types()
 
             markups.append(cls.markup_factory())
             for control_point in item["controlPoints"]:
@@ -132,7 +132,7 @@ class Markup(ABC):
 
     @staticmethod
     @abstractmethod
-    def static_type() -> str:
+    def types() -> List[str]:
         ...
 
 class PointMarkup(Markup):
@@ -144,8 +144,8 @@ class PointMarkup(Markup):
         return cls(*args, **kwargs)
 
     @staticmethod
-    def static_type() -> str:
-        return POINT_MARKUP_TYPE
+    def types() -> List[str]:
+        return [POINT_MARKUP_TYPE]
 
 class LineMarkup(Markup):
     def __init__(self, *args, **kwargs) -> None:
@@ -160,8 +160,8 @@ class LineMarkup(Markup):
         return cls(*args, **kwargs)
 
     @staticmethod
-    def static_type() -> str:
-        return LINE_MARKUP_TYPE
+    def types() -> List[str]:
+        return [LINE_MARKUP_TYPE]
 
 class CurveMarkup(Markup):
     def __init__(self, *args, **kwargs) -> None:
@@ -176,5 +176,5 @@ class CurveMarkup(Markup):
         return cls(*args, **kwargs)
 
     @staticmethod
-    def static_type() -> str:
-        return CURVE_MARKUP_TYPE
+    def types() -> List[str]:
+        return [CURVE_MARKUP_TYPE, CLOSED_CURVE_MARKUP_TYPE]
