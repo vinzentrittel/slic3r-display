@@ -6,3 +6,4 @@ from .core import (
     Slic3rLineRepresentable,
     Slic3rPointRepresentable,
 )
+from .convert import concatenate, concatenate_files, convert, convert_file
