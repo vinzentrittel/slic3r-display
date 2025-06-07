@@ -8,6 +8,7 @@ from .core import (
     Slic3rLineRepresentable,
     Slic3rPointRepresentable,
 )
+from .markup import ControlPoint
 from .settings import (
     LINE_MARKUP_TYPE,
     POINT_MARKUP_TYPE,
@@ -18,8 +19,8 @@ from .types import Float3VectorType
 
 def convert(representable: Slic3rRepresentable) -> Slic3rPointRepresentable:
     """
-    Convert any instance of an implementation of Slic3rRepresentable into a dummy Slic3rPointRepresentable
-    implementation's instance.
+    Convert any instance of an implementation of Slic3rRepresentable into a dummy
+    Slic3rPointRepresentable implementation's instance.
 
     Keyword arguments:
     representable - an instance of an inheriting class of any Slic3rRepresentable.
@@ -50,7 +51,7 @@ def concatenate(*representables: Slic3rRepresentable) -> Slic3rPointRepresentabl
                 result.points.append(point)
     return result
 
-def convert_file(filename: Path) -> Slic3rPointRepresentable:
+def convert_file(filename: Path, swap_coordinate_system: bool=False) -> Slic3rPointRepresentable:
     """
     Convert a 3D Slic3r .mrk.json markups file ino a dummy Slic3rPointRepresentable instance.
 
@@ -67,9 +68,11 @@ def convert_file(filename: Path) -> Slic3rPointRepresentable:
         raise NotImplementedError
 
     representable.read(filename)
+    if swap_coordinate_system:
+        representable.swap_coordinate_system()
     return convert(representable)
 
-def concatenate_files(*filenames: Path) -> Slic3rPointRepresentable:
+def concatenate_files(*filenames: Path, swap_coordinate_system: bool=False) -> Slic3rPointRepresentable:
     """
     Return a single instance of a dummy Slic3rPointRepresentable implementation, containing
     points of any number of Slic3rRepresentables, read from disc.
@@ -78,20 +81,27 @@ def concatenate_files(*filenames: Path) -> Slic3rPointRepresentable:
     representables - argument list containing one or more filenames to existing .mrk.json files
                      of the same type as created by 3D Slic3r.
     """
-    return concatenate(*[convert_file(filename) for filename in filenames])
+    if not swap_coordinate_system:
+        return concatenate(*[convert_file(filename) for filename in filenames])
+
+    representables = []
+    for filename in filenames:
+        representable = convert_file(filename)
+        representable.swap_coordinate_system()
+        representables.append(representable)
+    return concatenate(*representables)
 
 class _PointImplementation(Slic3rPointRepresentable):
     def __init__(self) -> None:
         super().__init__()
-        self._points: Float3VectorType = []
-
-    @property
-    def points(self):
-        return self._points
+        self.points: Float3VectorType = []
 
     def get_point(self, id_: int) -> Float3VectorType:
         assert 0 <= id_ < len(self.points)
         return self.points[id_]
+
+    def swap_coordinate_system(self) -> None:
+        self.points = [self.swap_coordinate_system_for(p) for p in self.points]
 
     @property
     def point_count(self) -> int:
@@ -104,14 +114,24 @@ class _PointImplementation(Slic3rPointRepresentable):
                 f'"type": "{POINT_MARKUP_TYPE}",', "\n".join(file.readlines())
             ) is not None
 
+    @staticmethod
+    def swap_coordinate_system_for(point: ControlPoint) -> ControlPoint:
+        position = point.position
+        position[:] = -position[0], -position[1], position[2]
+        return point
+
 class _LineImplementation(Slic3rLineRepresentable):
     def __init__(self) -> None:
         super().__init__()
-        self.lines: Float3VectorType = []
+        self.lines: List[Float3VectorType] = []
 
     def get_line(self, id_: int) -> List[Float3VectorType]:
         assert 0 <= id_ < len(self.lines)
         return self.lines[id_]
+
+    def swap_coordinate_system(self) -> None:
+        for line in self.lines:
+            line[:] = [_PointImplementation.swap_coordinate_system_for(p) for p in line]
 
     @property
     def line_count(self) -> int:
@@ -125,7 +145,7 @@ class _LineImplementation(Slic3rLineRepresentable):
 class _CurveImplementation(Slic3rCurveRepresentable):
     def __init__(self) -> None:
         super().__init__()
-        self.curves: Float3VectorType = []
+        self.curves: List[Float3VectorType] = []
 
     def get_curve(self, id_: int) -> List[Float3VectorType]:
         assert 0 <= id_ < len(self.curves)
@@ -134,6 +154,10 @@ class _CurveImplementation(Slic3rCurveRepresentable):
     @property
     def curve_count(self) -> int:
         return len(self.curves)
+
+    def swap_coordinate_system(self) -> None:
+        for curve in self.curves:
+            curve[:] = [_PointImplementation.swap_coordinate_system_for(p) for p in curve]
 
     @staticmethod
     def contains_curves(filename: Path):
