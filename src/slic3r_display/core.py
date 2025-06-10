@@ -175,7 +175,7 @@ class Slic3rPointRepresentable(Slic3rRepresentable):
         """
         markup = PointMarkup()
         for id_ in range(self.point_count):
-            markup.add(self.get_point(id_).position, id_=id_ + 1)
+            markup.add(self.get_point(id_), id_=id_ + 1)
         self.mrk_obj.markups = [markup]
 
     def read(self, filename: Path) -> None:

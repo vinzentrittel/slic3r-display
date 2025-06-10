@@ -28,7 +28,7 @@ def convert(representable: Slic3rRepresentable) -> Slic3rPointRepresentable:
     result = _PointImplementation()
     for markup in representable.mrk_obj.markups:
         for point in markup:
-            result.points.append(point)
+            result.points.append(point.position)
     return result
 
 def concatenate(*representables: Slic3rRepresentable) -> Slic3rPointRepresentable:
@@ -48,7 +48,7 @@ def concatenate(*representables: Slic3rRepresentable) -> Slic3rPointRepresentabl
         representable._update_markups()
         for markup in representable.mrk_obj.markups:
             for point in markup:
-                result.points.append(point)
+                result.points.append(point.position)
     return result
 
 def convert_file(filename: Path, swap_coordinate_system: bool=False) -> Slic3rPointRepresentable:
@@ -70,12 +70,12 @@ def convert_file(filename: Path, swap_coordinate_system: bool=False) -> Slic3rPo
     representable.read(filename)
     for markup in representable.mrk_obj.markups:
         if isinstance(representable, _LineImplementation):
-            representable.lines.append(markup)
+            representable.lines.append([p.position for p in markup])
         elif isinstance(representable, _CurveImplementation):
-            representable.curves.append(markup)
+            representable.curves.append([p.position for p in markup])
         else:
             for point in markup:
-                representable.points.append(point)
+                representable.points.append(point.position)
 
     if swap_coordinate_system:
         print(representable.curves)
