@@ -78,9 +78,7 @@ def convert_file(filename: Path, swap_coordinate_system: bool=False) -> Slic3rPo
                 representable.points.append(point.position)
 
     if swap_coordinate_system:
-        print(representable.curves)
         representable.swap_coordinate_system()
-        print(representable.curves)
     return convert(representable)
 
 def concatenate_files(*filenames: Path, swap_coordinate_system: bool=False) -> Slic3rPointRepresentable:
