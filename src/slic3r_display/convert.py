@@ -1,6 +1,6 @@
 from pathlib import Path
 from re import search
-from typing import List
+from typing import List, Tuple
 
 from .core import (
     Slic3rCurveRepresentable,
@@ -112,7 +112,7 @@ class _PointImplementation(Slic3rPointRepresentable):
         return self.points[id_]
 
     def swap_coordinate_system(self) -> None:
-        self.points = [self.swap_coordinate_system_for(p) for p in self.points]
+        self.points[:] = [self.swap_coordinate_system_for(p) for p in self.points]
 
     @property
     def point_count(self) -> int:
@@ -126,10 +126,8 @@ class _PointImplementation(Slic3rPointRepresentable):
             ) is not None
 
     @staticmethod
-    def swap_coordinate_system_for(point: ControlPoint) -> ControlPoint:
-        position = point.position
-        position[:] = -position[0], -position[1], position[2]
-        return point
+    def swap_coordinate_system_for(point: Tuple[float, float, float]) -> Tuple[float, float, float]:
+        return -point[0], -point[1], point[2]
 
 class _LineImplementation(Slic3rLineRepresentable):
     def __init__(self) -> None:
