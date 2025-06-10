@@ -68,8 +68,19 @@ def convert_file(filename: Path, swap_coordinate_system: bool=False) -> Slic3rPo
         raise NotImplementedError
 
     representable.read(filename)
+    for markup in representable.mrk_obj.markups:
+        if isinstance(representable, _LineImplementation):
+            representable.lines.append(markup)
+        elif isinstance(representable, _CurveImplementation):
+            representable.curves.append(markup)
+        else:
+            for point in markup:
+                representable.points.append(point)
+
     if swap_coordinate_system:
+        print(representable.curves)
         representable.swap_coordinate_system()
+        print(representable.curves)
     return convert(representable)
 
 def concatenate_files(*filenames: Path, swap_coordinate_system: bool=False) -> Slic3rPointRepresentable:

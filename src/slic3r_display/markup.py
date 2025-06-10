@@ -81,7 +81,7 @@ class Markup(ABC):
         return self.controlPoints[id_]
 
     def __setitem__(self, id_: int, point: Float3VectorType) -> None:
-        assert 0 < id_ <= self.capacity and id_ <= len(self)
+        assert 0 < id_ and self.capacity >= id_ and id_ <= len(self)
         if id_ == len(self) + 1:
             self.add(point)
         else:
